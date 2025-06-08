@@ -27,7 +27,7 @@ This repository contains Docker configurations for setting up consistent develop
 ### Basic Build
 
 ```bash
-docker build -t dev-container .
+docker build -t dev-container -f Dockerfile.debian-dev .
 ```
 
 ### Customizing Debian Version
@@ -35,7 +35,7 @@ docker build -t dev-container .
 You can specify a different Debian version during build:
 
 ```bash
-docker build --build-arg DEBIAN_VERSION=bookworm-slim -t dev-container .
+docker build --build-arg DEBIAN_VERSION=bookworm-slim -t dev-container -f Dockerfile.debian-dev .
 ```
 
 Available versions:
@@ -48,7 +48,7 @@ Available versions:
 If you only want the base development environment without additional configuration:
 
 ```bash
-docker build --target base-dev -t dev-base .
+docker build --target base-dev -t dev-base -f Dockerfile.debian-dev .
 ```
 
 This will build only the `base-dev` target, which includes all development tools but skips the Ansible configuration step.
