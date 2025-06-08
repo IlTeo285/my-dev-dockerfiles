@@ -1,0 +1,154 @@
+# Define build-time variable for Debian version
+ARG DEBIAN_VERSION=bullseye-slim
+
+# Use the ARG in the FROM instruction
+FROM debian:${DEBIAN_VERSION} AS base-dev
+
+# Create a non-root user
+ARG USERNAME=vscode
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+
+# Install and configure locales
+RUN apt-get update && apt-get install -y \
+    locales \
+    && rm -rf /var/lib/apt/lists/* \
+    && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
+
+# Set the default locale
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+RUN groupadd --gid $USER_GID $USERNAME \
+    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
+    && apt-get update \
+    && apt-get install -y sudo \
+    && echo $USERNAME ALL=\(ALL\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
+    && chmod 0440 /etc/sudoers.d/$USERNAME
+
+# Install build tools and development packages
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    wget \
+    git \
+    python3 \
+    gdb \
+    valgrind \
+    ccache \
+    unzip \
+    pkg-config \
+    bash \
+    perl \
+    libssl-dev \
+    zip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install LLVM and Clang
+RUN apt-get update && apt-get install -y \
+    clang \
+    clang-format \
+    clang-tidy \
+    llvm \
+    lld \
+    libc++-dev \
+    libc++abi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install CMake from source
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.31.7/cmake-3.31.7.tar.gz \
+    && tar -zxvf cmake-3.31.7.tar.gz \
+    && cd cmake-3.31.7 \
+    && ./bootstrap --parallel=$(nproc) \
+    && make -j$(nproc) \
+    && make install \
+    && cd .. \
+    && rm -rf cmake-3.31.7 cmake-3.31.7.tar.gz
+
+# Install Ninja from source
+RUN git clone https://github.com/ninja-build/ninja.git \
+    && cd ninja \
+    && cmake -Bbuild-cmake -DBUILD_TESTING=OFF \
+    && cmake --build build-cmake \
+    && chmod +x build-cmake/ninja \
+    && cp build-cmake/ninja /usr/local/bin/ \
+    && cd .. \
+    && rm -rf ninja
+
+# Set the default compiler to clang
+ENV CC=/usr/bin/clang
+ENV CXX=/usr/bin/clang++
+
+# requirements for documentation generation
+RUN apt-get update && apt-get install -y \
+    flex \
+    bison \
+    npm \
+    graphviz \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Doxygen from source
+RUN wget https://www.doxygen.nl/files/doxygen-1.13.2.src.tar.gz \
+    && tar -xvf doxygen-1.13.2.src.tar.gz \
+    && cd doxygen-1.13.2 \
+    && mkdir build \
+    && cd build \
+    && cmake -G "Unix Makefiles" .. \
+    && make \
+    && make install \
+    && cd .. \
+    && rm -rf doxygen-1.13.2 doxygen-1.13.2.tar.gz
+
+RUN npm install -g moxygen
+
+# Install vcpkg
+RUN git clone https://github.com/Microsoft/vcpkg.git /opt/vcpkg \
+    && /opt/vcpkg/bootstrap-vcpkg.sh -disableMetrics \
+    && ln -s /opt/vcpkg/vcpkg /usr/local/bin/vcpkg
+
+# Set vcpkg environment variables
+ENV VCPKG_ROOT=/opt/vcpkg
+ENV VCPKG_DOWNLOADS=/opt/vcpkg/downloads
+
+# Change ownership of vcpkg directory to vscode user
+RUN chown -R $USERNAME:$USERNAME /opt/vcpkg
+
+# Configure vcpkg for CMake integration
+ENV CMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake
+
+
+# Install pip
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install zsh and dependencies
+RUN apt-get update && apt-get install -y \
+    zsh \
+    git \
+    curl \
+    fzf \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set ZSH as default shell for vscode user
+RUN chsh -s $(which zsh) $USERNAME
+
+# Set the default shell to zsh
+SHELL ["/bin/zsh", "-c"]
+
+
+FROM base-dev
+
+# Configure with ansible
+# Run Ansible as the non-root user
+USER $USERNAME
+WORKDIR /home/$USERNAME
+RUN git clone https://github.com/IlTeo285/configure-my-fedora.git \
+    && cd configure-my-fedora \
+    && git checkout debian \
+    && make setup \
+    && venv/bin/ansible-playbook playbook.yml -v
+
+USER root
