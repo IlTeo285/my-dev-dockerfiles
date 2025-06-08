@@ -24,7 +24,30 @@ This repository contains Docker configurations for setting up consistent develop
 
 ## Usage
 
-### Basic Build
+### Using Make Commands
+
+The repository includes a Makefile for easy building and management of images:
+
+```bash
+# Build all versions (Debian 11, 12, and 13)
+make
+
+# Build specific versions
+make bullseye  # Debian 11
+make bookworm  # Debian 12
+make trixie    # Debian 13
+
+# Push images to Docker Hub
+make push
+
+# Remove all built images
+make clean
+
+# Show available commands
+make help
+```
+
+### Manual Build
 
 ```bash
 docker build -t dev-container -f Dockerfile.debian-dev .
@@ -58,15 +81,14 @@ This will build only the `base-dev` target, which includes all development tools
 A pre-built version of this environment is available on Docker Hub:
 
 ```bash
-docker pull ilteo285/debian-coding-environment
-```
-
-You can also directly reference this image in your Docker configurations:
-
-```dockerfile
-FROM ilteo285/debian-coding-environment:latest
+docker pull ilteo285/debian-coding-environment:[TAG]
 ```
 
 Available tags:
-- `latest`: Most recent stable build
-- `base-dev`: Base development environment only
+- `latest`: Most recent stable build (Debian 12/Bookworm)
+- `bookworm-slim`: Debian 12 version
+- `bookworm-slim-base-dev`: Debian 12 base development environment
+- `bullseye-slim`: Debian 11 version
+- `bullseye-slim-base-dev`: Debian 11 base development environment
+- `trixie-slim`: Debian 13/testing version
+- `trixie-slim-base-dev`: Debian 13 base development environment
