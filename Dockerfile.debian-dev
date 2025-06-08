@@ -145,9 +145,8 @@ FROM base-dev
 # Run Ansible as the non-root user
 USER $USERNAME
 WORKDIR /home/$USERNAME
-RUN git clone https://github.com/IlTeo285/configure-my-fedora.git \
-    && cd configure-my-fedora \
-    && git checkout debian \
+RUN git clone https://github.com/IlTeo285/configure-my-linux.git \
+    && cd configure-my-linux \
     && make setup \
     && venv/bin/ansible-playbook playbook.yml -v
 
