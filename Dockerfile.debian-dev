@@ -152,3 +152,69 @@ RUN git clone https://github.com/IlTeo285/configure-my-linux.git \
     && venv/bin/ansible-playbook playbook.yml -v
 
 USER root
+
+
+# Build from base-dev Dockerfile first
+FROM base-dev as qt-dev
+
+# Install Qt dependencies
+RUN apt update && apt install -y \
+    libxkbcommon-x11-0 \
+    libxcb-cursor0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-render-util0 \
+    libxcb-xinerama0 \
+    libxcb-xkb1 \
+    libxrender1 \
+    libxi6 \
+    libegl1-mesa \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libgl1-mesa-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create and activate virtual environment for aqt
+RUN python3 -m venv /opt/aqt_venv && \
+    /opt/aqt_venv/bin/pip install --no-cache-dir aqtinstall
+
+# Install Qt for desktop and WebAssembly
+RUN /opt/aqt_venv/bin/aqt install-qt \
+        linux desktop 6.6.3 gcc_64 \
+        --outputdir /opt/qt \
+        --modules all
+
+RUN /opt/aqt_venv/bin/aqt install-qt \
+        linux desktop 6.6.3 wasm_singlethread \
+        --outputdir /opt/qt \
+        --modules all
+
+RUN chown -R $USERNAME:$USERNAME /opt/qt
+
+# Install Emscripten SDK
+RUN git clone https://github.com/emscripten-core/emsdk.git /opt/emsdk && \
+    cd /opt/emsdk && \
+    ./emsdk install 3.1.25 && \
+    ./emsdk activate 3.1.25 && \
+    chmod -R a+rwx /opt/emsdk
+
+# Add Emscripten to PATH and set env variables
+ENV EMSDK=/opt/emsdk
+ENV PATH="${EMSDK}:${EMSDK}/upstream/emscripten:${PATH}"
+
+# Give vscode user access to emsdk and setup shell
+RUN chown -R $USERNAME:$USERNAME /opt/emsdk && \
+    su - $USERNAME -c 'echo "source \"$EMSDK/emsdk_env.sh\"" >> ~/.zshrc'
+
+# Configure with ansible
+# Run Ansible as the non-root user
+USER $USERNAME
+WORKDIR /home/$USERNAME
+RUN git clone https://github.com/IlTeo285/configure-my-linux.git \
+    && cd configure-my-linux \
+    && make setup \
+    && venv/bin/ansible-playbook playbook.yml -v
+
+USER root
+
